@@ -8,8 +8,8 @@ public abstract class TJPTest
 	/**
 	 * Should reset any counters to zero.
 	 */
-	public void reset() { }
-	public void report() { } 
+	public abstract void reset();
+	public abstract void report(); 
 	
 	public abstract void iter();
 	
@@ -18,7 +18,7 @@ public abstract class TJPTest
 	protected long interval() { return System.currentTimeMillis() - timer; }
 	
 	protected static void printMilliseconds( String label, long amount ) {
-		System.out.println( String.format("%20s: % 8dms", label, amount ) );
+		System.out.println( String.format("%30s: % 8dms", label, amount ) );
 	}
 	
 	public void run() {
