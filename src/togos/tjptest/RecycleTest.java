@@ -2,24 +2,26 @@ package togos.tjptest;
 
 
 /**
- * Is it faster to new things up a lot or to
- * recycle objects using a pool?
+ * Is it faster to new things up a lot or to recycle objects using a pool?
  * 
  * Findings:
  * Java HotSpot(TM) Client VM (build 23.5-b02, mixed mode, sharing)
- * For small, short-term objects, new is about 10 times as fast.
+ * with small, short-term objects:
+ * 
+ * Local, unsynchronized pool (including recycling them) is slightly faster than newing up objects.
+ * Newing up objects is about 8 times as fast as using a global, synchronized pool. 
  */
 public class RecycleTest extends TJPTest
 {
-	long newTime;
-	long recycleTime;
+	long newTime, globalPoolTime, localPoolTime;
 	int counter;
 	
-	RecycledThing[] things = new RecycledThing[1024];
+	final RecycledThing[] things = new RecycledThing[1024];
+	final RecyclePool<RecycledThing> pool = new RecyclePool<RecycledThing>(1024);;
 	
 	@Override public void reset() {
 		innerIterations = outerIterations = 300;
-		newTime = recycleTime = 0;
+		newTime = globalPoolTime = localPoolTime = 0;
 	}
 	
 	protected void countThings() {
@@ -31,29 +33,46 @@ public class RecycleTest extends TJPTest
 	@Override public void iter() {
 		initTimer();
 		for( int i=innerIterations-1; i>=0; --i ) {
-			for( int j=0; j<things.length; ++j ) {
-				things[j] = RecycledThing.takeInstance(i+j);
+			for( int j=things.length-1; j>=0; --j ) {
+				things[j] = StaticRecyclePool.take();
+				if( things[j] == null ) things[j] = new RecycledThing(i+j);
+				else things[j].payload = i+j;
 			}
 			countThings(); 
-			for( int j=0; j<things.length; ++j ) {
-				things[j].recycle();
+			for( int j=things.length-1; j>=0; --j ) {
+				StaticRecyclePool.recycle(things[j]);
 			}
 		}
-		recycleTime += interval();
+		globalPoolTime += interval();
 		
 		initTimer();
 		for( int i=innerIterations-1; i>=0; --i ) {
-			for( int j=0; j<things.length; ++j ) {
+			for( int j=things.length-1; j>=0; --j ) {
 				things[j] = new RecycledThing(i+j);
 			}
 			countThings(); 
 		}
 		newTime += interval();
+		
+		initTimer();
+		for( int i=innerIterations-1; i>=0; --i ) {
+			for( int j=things.length-1; j>=0; --j ) {
+				things[j] = pool.take();
+				if( things[j] == null ) things[j] = new RecycledThing(i+j);
+				else things[j].payload = i+j;
+			}
+			countThings();
+			for( int j=things.length-1; j>=0; --j ) {
+				pool.recycle(things[j]);
+			}
+		}
+		localPoolTime += interval();
 	}
 	
 	@Override public void report() {
 		printMilliseconds("New", newTime);
-		printMilliseconds("Recycle", recycleTime);
+		printMilliseconds("Global pool", globalPoolTime);
+		printMilliseconds("Local pool", localPoolTime);
 	}
 	
 	public static void main( String[] args ) {
